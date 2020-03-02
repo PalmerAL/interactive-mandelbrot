@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Interactive Mandelbrot Visualization</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1,user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <style>
+        body {
+            margin: 0;
+            background: black;
+            height: 100vh;
+        }
+
+        * {
+            font-family: Arial, sans-serif;
+            color: white;
+            box-sizing: border-box;
+        }
+
+        canvas {
+            display: block;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: scale(1.11111) translateX(-50%) translateY(-50%);
+            transform-origin: top left;
+        }
+
+        #info {
+            position: absolute;
+            top: 0;
+            padding: 1em 1.5em;
+            width: 100%;
+            z-index: 2;
+        }
+
+        #github-link {
+            float: right;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="info">
+        Use mousewheel or touchscreen to zoom <a id="github-link"
+            href="https://github.com/palmerAL/interactive-mandelbrot">View on GitHub</a>
+    </div>
+    <canvas id="mandelbrot-canvas"></canvas>
+    <script>
+
+        var canvas = document.getElementById("mandelbrot-canvas")
+        var ctx = canvas.getContext("2d")
+
+        var canvasPos = { x: 0, y: 0 }
+        var graphDimensions;
+
+        function sizeCanvas() {
+            var size = Math.min(window.innerWidth, window.innerHeight);
+            var minDimension = Math.round(size * 0.9)
+            graphDimensions = {
+                width: minDimension,
+                height: minDimension,
+            }
+            canvas.width = graphDimensions.width;
+            canvas.height = graphDimensions.height;
+            canvasPos.x = Math.max(0, (window.innerWidth - size) / 2);
+            canvasPos.y = Math.max(0, (window.innerHeight - size) / 2);
+        }
+
+        sizeCanvas();
+
+        window.addEventListener("resize", function () {
+            sizeCanvas();
+            runPreview();
+        });
+
+        var xBounds, yBounds
+
+        function setBounds(x0, x1, y0, y1) {
+            if (x1 - x0 < 10 ** -8) {
+                return false;
+            }
+            xBounds = [x0, x1]
+            yBounds = [y0, y1]
+            return true;
+        }
+
+        setBounds(-2, 1, -1.5, 1.5)
+
+        var max_iterations = 150;
+
+        function testMandelbrot(ca, cb) {
+            if (ca > -0.54 && ca < 0.24 && cb < 0.48 && cb > -0.48) {
+                //known-0 region: http://cosinekitty.com/disk_graph.gif
+                return 0;
+            }
+            var za = 0;
+            var zb = 0;
+            for (var i = 0; i < max_iterations; i++) {
+                var nza = (za * za - zb * zb) + ca
+                zb = (2 * za * zb) + cb
+                za = nza
+                if ((za * za + zb * zb) > 4) {
+                    return i;
+                }
+            }
+            return 0
+        }
+
+
+        function generateGraph() {
+            var imgData = ctx.createImageData(graphDimensions.width, graphDimensions.height)
+            var idx = 0;
+            var m_iter = Math.min(max_iterations, 150);
+
+            var cScale = (1 / m_iter) * 255;
+
+            var xStep = (xBounds[1] - xBounds[0]) / graphDimensions.width;
+            var yStep = (yBounds[1] - yBounds[0]) / graphDimensions.height;
+
+            var y = yBounds[0]
+            for (var r = 0; r < graphDimensions.height; r++) {
+                var x = xBounds[0]
+                for (var c = 0; c < graphDimensions.width; c++) {
+                    var color = testMandelbrot(x, y) * cScale
+                    imgData.data[idx++] = color;
+                    imgData.data[idx++] = color * 0.5;
+                    imgData.data[idx++] = 0;
+                    imgData.data[idx++] = 255;
+                    x += xStep
+                }
+                y += yStep
+            }
+            ctx.putImageData(imgData, 0, 0)
+        }
+
+        function run(quality) {
+            if (quality === "low") {
+                max_iterations = Math.round(
+                    Math.min(Math.max(50, 20 + (-30 * Math.log10(xBounds[1] - xBounds[0]))), 150)
+                )
+            } else {
+                max_iterations = Math.round(
+                    Math.min(Math.max(60, 50 + (-50 * Math.log10(xBounds[1] - xBounds[0]))), 300)
+                )
+            }
+            generateGraph()
+        }
+
+        var lastMovement = 0;
+
+        function runPreview() {
+            lastMovement = Date.now()
+            run("low");
+            setTimeout(function () {
+                if (Date.now() - lastMovement >= 500) {
+                    run();
+                }
+            }, 500);
+        }
+
+        run()
+
+        canvas.addEventListener("wheel", function (e) {
+            e.preventDefault()
+            var scale_factor = e.deltaY * -0.001;
+            var xpct = (e.offsetX / graphDimensions.width)
+            var ypct = (e.offsetY / graphDimensions.height)
+
+            var xcenter = xBounds[0] + (xBounds[1] - xBounds[0]) * xpct
+            var ycenter = yBounds[0] + (yBounds[1] - yBounds[0]) * ypct
+
+            var xshrink = (xBounds[1] - xBounds[0]) * scale_factor
+            var yshrink = (yBounds[1] - yBounds[0]) * scale_factor
+
+            if (setBounds(
+                xBounds[0] + (xshrink * xpct),
+                xBounds[1] - (xshrink * (1 - xpct)),
+                yBounds[0] + (yshrink * ypct),
+                yBounds[1] - (yshrink * (1 - ypct))
+            )) {
+                runPreview()
+            }
+        }, { passive: false })
+
+        var isMouseDown = false;
+
+        window.addEventListener("mousedown", function () {
+            isMouseDown = true;
+        })
+        window.addEventListener("mouseup", function () {
+            isMouseDown = false;
+        })
+
+        window.addEventListener("mousemove", function (e) {
+            var dx = e.movementX * (xBounds[1] - xBounds[0]) * -0.00125;
+            var dy = e.movementY * (yBounds[1] - yBounds[0]) * -0.00125;
+            if (isMouseDown) {
+                setBounds(
+                    xBounds[0] + dx,
+                    xBounds[1] + dx,
+                    yBounds[0] + dy,
+                    yBounds[1] + dy,
+                )
+                runPreview();
+            }
+        })
+
+        var lastTouch;
+        window.addEventListener("touchmove", function (e) {
+            e.preventDefault();
+            if (lastTouch && e.touches.length == 1) {
+                var movementX = e.touches[0].pageX - lastTouch.touches[0].pageX
+                var movementY = e.touches[0].pageY - lastTouch.touches[0].pageY
+                var dx = movementX * (xBounds[1] - xBounds[0]) * -0.003
+                var dy = movementY * (yBounds[1] - yBounds[0]) * -0.003
+                setBounds(
+                    xBounds[0] + dx,
+                    xBounds[1] + dx,
+                    yBounds[0] + dy,
+                    yBounds[1] + dy,
+                )
+                runPreview();
+            } else if (lastTouch && e.touches.length == 2 && lastTouch.touches.length == 2) {
+                //https://stackoverflow.com/a/11183333
+                var thisDist = Math.hypot(
+                    e.touches[0].pageX - e.touches[1].pageX,
+                    e.touches[0].pageY - e.touches[1].pageY);
+                var lastDist = Math.hypot(
+                    lastTouch.touches[0].pageX - lastTouch.touches[1].pageX,
+                    lastTouch.touches[0].pageY - lastTouch.touches[1].pageY);
+
+                var scaleFactor = (thisDist - lastDist) * 0.007;
+
+                var xpct = (((e.touches[0].pageX + e.touches[1].pageX - (2 * canvasPos.x)) / 2) / graphDimensions.width)
+                var ypct = (((e.touches[0].pageY + e.touches[1].pageY - (2 * canvasPos.y)) / 2) / graphDimensions.height)
+
+                var xcenter = xBounds[0] + (xBounds[1] - xBounds[0]) * xpct
+                var ycenter = yBounds[0] + (yBounds[1] - yBounds[0]) * ypct
+
+                var xshrink = (xBounds[1] - xBounds[0]) * scaleFactor
+                var yshrink = (yBounds[1] - yBounds[0]) * scaleFactor
+
+                if(setBounds(
+                    xBounds[0] + (xshrink * xpct),
+                    xBounds[1] - (xshrink * (1 - xpct)),
+                    yBounds[0] + (yshrink * ypct),
+                    yBounds[1] - (yshrink * (1 - ypct))
+                )) {
+                    runPreview();
+                }
+            }
+            lastTouch = e;
+        }, { passive: false })
+
+        window.addEventListener("touchend", function () {
+            lastTouch = null;
+        })
+    </script>
+</body>
+
+</html>
