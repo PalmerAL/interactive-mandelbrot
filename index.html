@@ -52,7 +52,7 @@
     <script src="gpu.js"></script>
     <script>
         var gpu = new GPU();
-        var mandlebrotKernel = gpu.createKernel(function (xs, ys, xStep, yStep) {
+        var mandelbrotKernel = gpu.createKernel(function (xs, ys, xStep, yStep) {
             function testMandelbrot(ca, cb) {
                 if (ca > -0.54 && ca < 0.24 && cb < 0.48 && cb > -0.48) {
                     //known-0 region: http://cosinekitty.com/disk_graph.gif
@@ -81,8 +81,8 @@
         function runKernel(xBounds, yBounds, width, height) {
             var xStep = (xBounds[1] - xBounds[0]) / width;
             var yStep = (yBounds[1] - yBounds[0]) / height;
-            mandlebrotKernel.setOutput([width, height])
-            return mandlebrotKernel(xBounds[0], yBounds[0], xStep, yStep);
+            mandelbrotKernel.setOutput([width, height])
+            return mandelbrotKernel(xBounds[0], yBounds[0], xStep, yStep);
         }
     </script>
     <script>
